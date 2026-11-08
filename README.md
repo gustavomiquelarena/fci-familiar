@@ -69,7 +69,7 @@ La distribución por instrumento de cada hijo es proporcional a sus cuotapartes 
 
 En **Configuración**, indicar la URL HTTPS del repositorio y la URL de Pages. Para esta aplicación se publica la rama `main`, carpeta `/docs`, mediante **Settings → Pages → Deploy from a branch**.
 
-Git debe tener configurado el nombre/correo del autor y un acceso válido al repositorio bajo el mismo usuario de Windows que ejecuta la tarea. Usar Git Credential Manager para iniciar sesión; nunca colocar un token en la URL del remoto ni en los archivos del proyecto.
+Git debe tener configurado el nombre/correo del autor y un acceso válido al repositorio bajo el mismo usuario de Windows que ejecuta la tarea. Usar Git Credential Manager para iniciar sesión; nunca colocar un token en la URL del remoto ni en los archivos del proyecto. La ruta absoluta de Git queda guardada como `git_executable` en la configuración privada, porque Task Scheduler no hereda el PATH de la terminal de desarrollo. Si cambia la instalación, el programa también busca Git en PATH, ubicaciones habituales de Windows y el runtime registrado de Codex.
 
 **Publicar** prepara una versión completa, cifra cada reporte con su contraseña individual, comprueba los archivos permitidos y hace commit/push únicamente de los reportes generados. Los cambios del código se revisan y publican por separado. La versión sólo figura publicada cuando la URL de Pages confirma el manifiesto y sus archivos. Si Pages tarda más, la publicación queda pendiente de verificación.
 

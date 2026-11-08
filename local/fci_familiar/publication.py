@@ -8,8 +8,10 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sqlite3
 import subprocess
+import sys
 import time
 import urllib.request
 import uuid
@@ -58,9 +60,37 @@ def process_lock(root: Path):
         file.close()
 
 
-def _git(*args: str, check: bool = True, timeout: int = 90) -> subprocess.CompletedProcess:
+def resolve_git(configured: str = "") -> str:
+    """Task Scheduler does not inherit the development terminal's PATH."""
+    for candidate in (configured, os.environ.get("FCI_GIT_EXE", ""), shutil.which("git")):
+        if candidate and Path(candidate).is_absolute() and Path(candidate).is_file():
+            return str(candidate)
+    if sys.platform == "win32":
+        common = [Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git/cmd/git.exe",
+                  Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Git/cmd/git.exe",
+                  Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData/Local"))) / "Programs/Git/cmd/git.exe"]
+        for candidate in common:
+            if candidate.is_file():
+                return str(candidate)
+        # The bundled runtime may be the only Git installed on this PC. Resolve
+        # the registered package again if its version changed after an app update.
+        command = "$ErrorActionPreference='Stop'; Get-AppxPackage -Name 'OpenAI.CodexPrimaryRuntime*' | Sort-Object -Property Version -Descending | ForEach-Object { Join-Path $_.InstallLocation 'dependencies\\native\\git\\cmd\\git.exe' }"
+        try:
+            result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+                                    capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    candidate = Path(line.strip())
+                    if candidate.is_absolute() and candidate.is_file():
+                        return str(candidate)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    raise RuntimeError("No se encuentra Git. Instalá Git para Windows o configurá git_executable con su ruta absoluta en la configuración privada")
+
+
+def _git(*args: str, check: bool = True, timeout: int = 90, executable: str | None = None) -> subprocess.CompletedProcess:
     env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never")
-    result = subprocess.run(["git", "-C", str(REPO_ROOT), *args], capture_output=True,
+    result = subprocess.run([resolve_git(executable or ""), "-C", str(REPO_ROOT), *args], capture_output=True,
                             text=True, encoding="utf-8", errors="replace", env=env, timeout=timeout)
     if check and result.returncode:
         # Never return credential-helper output, remote errors can include credentials.
@@ -72,10 +102,10 @@ def ensure_repository(config: Config) -> None:
     if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?", config.repository_url):
         raise ValueError("Configurá una URL HTTPS de repositorio GitHub sin credenciales")
     if not (REPO_ROOT / ".git").exists():
-        _git("init", "-b", "main")
-    remote = _git("remote", "get-url", "origin", check=False)
+        _git("init", "-b", "main", executable=config.git_executable)
+    remote = _git("remote", "get-url", "origin", check=False, executable=config.git_executable)
     if remote.returncode:
-        _git("remote", "add", "origin", config.repository_url)
+        _git("remote", "add", "origin", config.repository_url, executable=config.git_executable)
     elif remote.stdout.strip().removesuffix(".git") != config.repository_url.removesuffix(".git"):
         raise ValueError("El repositorio configurado no coincide con origin")
 
@@ -179,16 +209,17 @@ def publish(conn, config: Config, passwords: dict[str, str], *, bundle: dict | N
         ensure_repository(config)
         # Weekly publishing owns only generated data. Source changes are committed
         # separately after development checks, never swept into a password reset.
-        already_staged = _git("diff", "--cached", "--name-only").stdout.splitlines()
+        git_path = config.git_executable
+        already_staged = _git("diff", "--cached", "--name-only", executable=git_path).stdout.splitlines()
         if any(not p.startswith("docs/data/") for p in already_staged):
             raise ValueError("Hay cambios de código preparados en Git; completá esa revisión antes de publicar reportes")
-        _git("add", "--", "docs/data")
-        staged = _git("diff", "--cached", "--name-only").stdout.splitlines()
+        _git("add", "--", "docs/data", executable=git_path)
+        staged = _git("diff", "--cached", "--name-only", executable=git_path).stdout.splitlines()
         if any(Path(p).suffix.lower() in {".xlsx", ".ini", ".db", ".sqlite3", ".csv"} for p in staged):
             raise ValueError("Git contiene un archivo privado preparado para publicar")
-        _git("commit", "-m", f"Actualizar reportes cifrados: {bundle['as_of']}")
-        sha = _git("rev-parse", "HEAD").stdout.strip()
-        _git("push", "-u", "origin", "main", timeout=120)
+        _git("commit", "-m", f"Actualizar reportes cifrados: {bundle['as_of']}", executable=git_path)
+        sha = _git("rev-parse", "HEAD", executable=git_path).stdout.strip()
+        _git("push", "-u", "origin", "main", timeout=120, executable=git_path)
         conn.execute("UPDATE publications SET state='pushed',git_sha=? WHERE id=?", (sha, publication_id))
         conn.commit()
         if not verify or not config.pages_url:

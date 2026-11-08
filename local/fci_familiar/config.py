@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import json
 import os
+import shutil
 from pathlib import Path
 import tempfile
 
@@ -51,6 +52,7 @@ class Config:
     credential_target: str = "secret_key"
     repository_url: str = ""
     pages_url: str = ""
+    git_executable: str = ""
     backup_dir: str = ""
     port: int = 8765
     schedule: str = "Domingos 18:00 (Argentina)"
@@ -68,6 +70,8 @@ class Config:
         return self.root / "config.json"
 
     def save(self) -> None:
+        if not self.git_executable:
+            self.git_executable = shutil.which("git") or ""
         atomic_json(self.file, asdict(self))
 
     def remember_location(self) -> None:
