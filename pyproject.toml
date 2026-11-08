@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fci-familiar"
+version = "1.0.0"
+description = "Administración local de un fondo familiar y reportes cifrados para GitHub Pages"
+requires-python = ">=3.11"
+dependencies = ["fastapi==0.141.1", "uvicorn==0.52.4", "requests==2.34.2", "cryptography==50.0.1"]
+
+[project.optional-dependencies]
+windows = ["pywin32>=308; sys_platform == 'win32'"]
+
+[project.scripts]
+fci-familiar = "fci_familiar.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["local"]
+
+[tool.setuptools.package-data]
+fci_familiar = ["static/*"]
