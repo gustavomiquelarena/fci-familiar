@@ -119,7 +119,10 @@ def main(argv=None):
         with service.connection() as conn:
             conn.execute("INSERT INTO app_meta(key,value) VALUES('last_weekly_published',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (datetime.now().astimezone().isoformat(),))
             conn.commit()
-        _print({"sync": sync_result, "publication": publish_result, "backup": service.backup()})
+        # Both service.sync() and service.publish() already verify their backup.
+        # Rewriting the same Dropbox destination a third time can collide with
+        # its synchronizer immediately after a successful publication.
+        _print({"sync": sync_result, "publication": publish_result})
 
 
 if __name__ == "__main__":

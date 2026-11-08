@@ -100,7 +100,7 @@ python -m fci_familiar weekly --if-due
 
 ## Respaldos y recuperación
 
-Los respaldos usan la API de SQLite y verifican integridad. Se conservan 12 semanales y 12 mensuales; la configuración se respalda separadamente. Las contraseñas y la clave maestra siguen en Windows Credential Manager y no se incluyen en SQLite.
+Los respaldos usan la API de SQLite y verifican integridad. Se conservan 12 semanales y 12 mensuales; la configuración se respalda separadamente. Los reemplazos de archivos se reintentan brevemente si Windows o el sincronizador retienen el destino. Cada operación verifica su respaldo; el cierre semanal no lo vuelve a escribir después de terminar. Las contraseñas y la clave maestra siguen en Windows Credential Manager y no se incluyen en SQLite.
 
 Restaurar en una carpeta nueva (el comando no sobrescribe la base activa):
 

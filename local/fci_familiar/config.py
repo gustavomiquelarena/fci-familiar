@@ -7,8 +7,21 @@ import os
 import shutil
 from pathlib import Path
 import tempfile
+import time
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def replace_file(source: Path, destination: Path, *, attempts: int = 12, delay: float = 0.25) -> None:
+    """Cloud sync/indexers can briefly hold a Windows destination after a write."""
+    for attempt in range(attempts):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay)
 
 
 def atomic_json(path: Path, value: object) -> None:
@@ -20,7 +33,7 @@ def atomic_json(path: Path, value: object) -> None:
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(name, path)
+        replace_file(Path(name), path)
     finally:
         if os.path.exists(name):
             os.unlink(name)

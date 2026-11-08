@@ -5,13 +5,12 @@ from contextlib import contextmanager, closing
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-import shutil
 import sqlite3
 import subprocess
 import sys
 import uuid
 
-from .config import Config, REPO_ROOT
+from .config import Config, REPO_ROOT, atomic_json, replace_file
 from .credentials import SecretStore
 from . import db, finance, importer, publication
 
@@ -211,14 +210,14 @@ class Service:
                 source.backup(target)
                 if target.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                     raise RuntimeError("No se pudo verificar el respaldo")
-            temporary.replace(destination)
+            replace_file(temporary, destination)
             paths.append(str(destination))
         for prefix in ("weekly-", "monthly-"):
             for file in sorted(directory.glob(prefix + "*.sqlite3"), reverse=True)[12:]:
                 if file.resolve().parent == directory:
                     file.unlink()
         if self.config.file.exists():
-            shutil.copy2(self.config.file, directory / "config-backup.json")
+            atomic_json(directory / "config-backup.json", json.loads(self.config.file.read_text(encoding="utf-8")))
         return {"files": paths, "integrity": "ok"}
 
     def install_schedule(self) -> dict:
