@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "version": "9bff0e2cdfb749ee872b74a3758ecdcb",
+  "as_of": "2026-11-08",
+  "participants": [
+    {
+      "id": "tommy",
+      "name": "Tommy",
+      "file": "data/tommy-f5976e01c7265b8e.enc"
+    },
+    {
+      "id": "juli",
+      "name": "Juli",
+      "file": "data/juli-1169b1902141fb11.enc"
+    },
+    {
+      "id": "pili",
+      "name": "Pili",
+      "file": "data/pili-762c5924031d2166.enc"
+    }
+  ]
+}
