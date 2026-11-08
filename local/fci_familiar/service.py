@@ -169,8 +169,17 @@ class Service:
                 result["message"] = "Contraseña guardada. " + str(exc)
         return result
 
+    def restore_publication(self, publication_id: str) -> dict:
+        with self.connection() as conn:
+            row = conn.execute("SELECT payload_json FROM publications WHERE id=? AND state='published'", (publication_id,)).fetchone()
+            if not row:
+                raise ValueError("Seleccioná una publicación verificada para recuperarla")
+            bundle = json.loads(row[0])
+        return self.publish(bundle=bundle)
+
     def update_settings(self, values: dict) -> dict:
         allowed = {"repository_url", "pages_url", "source_workbook", "encrypted_config_path", "iol_username"}
+        prepared = {}
         for key in allowed & values.keys():
             value = str(values[key]).strip()
             if key in {"source_workbook", "encrypted_config_path"} and value and not Path(value).is_absolute():
@@ -181,6 +190,8 @@ class Service:
                     raise ValueError("Usá una URL HTTPS de GitHub sin credenciales")
             if key == "pages_url" and value and not value.startswith("https://"):
                 raise ValueError("Pages debe usar HTTPS")
+            prepared[key] = value
+        for key, value in prepared.items():
             setattr(self.config, key, value)
         self.config.save()
         return {"saved": True}

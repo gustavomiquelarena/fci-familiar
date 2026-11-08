@@ -48,6 +48,10 @@ def create_app(config: Config | None = None) -> FastAPI:
     def state():
         return dict(service.state(), csrf_token=token)
 
+    @app.get("/api/health")
+    def health():
+        return {"app": "fci-familiar", "version": "1.0.0"}
+
     @app.get("/api/logs")
     def logs():
         with service.connection() as conn:
@@ -77,6 +81,10 @@ def create_app(config: Config | None = None) -> FastAPI:
     @app.post("/api/publish")
     def publish(data: dict):
         return {"ok": True, "result": service.publish()}
+
+    @app.post("/api/publications/{publication_id}/restore")
+    def restore_publication(publication_id: str, data: dict):
+        return {"ok": True, "result": service.restore_publication(publication_id)}
 
     @app.post("/api/users/{pid}/password")
     def password(pid: str, data: dict):

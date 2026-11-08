@@ -76,10 +76,10 @@ function participantName(id) {
 function movementDate(movement) { return movement.date || movement.effective_at; }
 function isRedemption(movement) { return ['redemption', 'withdrawal', 'rescate'].includes(String(movement.type).toLowerCase()) || number(movement.amount_usd) < 0; }
 function statusLabel(status) {
-  return ({ pending: 'Pendiente', posted: 'Acreditado', published: 'Publicado', approved: 'Aprobado', success: 'Correcto', completed: 'Completado', failed: 'Error', error: 'Error', reversed: 'Revertido', staged: 'Preparado', pending_publish: 'Por publicar', imported: 'Histórico', ready: 'Listo' })[status] || status || '—';
+  return ({ pending: 'Pendiente', posted: 'Acreditado', published: 'Publicado', pushed: 'Esperando confirmación de Pages', preparing: 'Preparando', prepared: 'Preparado', approved: 'Aprobado', success: 'Correcto', completed: 'Completado', failed: 'Error', error: 'Error', reversed: 'Revertido', staged: 'Preparado', pending_publish: 'Por publicar', imported: 'Histórico', ready: 'Listo' })[status] || status || '—';
 }
 function statusBadge(status) {
-  const cls = ['failed', 'error'].includes(status) ? ' error' : ['pending', 'pending_publish', 'staged'].includes(status) ? ' pending' : ['reversed', 'imported'].includes(status) ? ' neutral' : '';
+  const cls = ['failed', 'error'].includes(status) ? ' error' : ['pending', 'pending_publish', 'staged', 'pushed', 'prepared', 'preparing'].includes(status) ? ' pending' : ['reversed', 'imported'].includes(status) ? ' neutral' : '';
   return `<span class="status${cls}">${esc(statusLabel(status))}</span>`;
 }
 
@@ -88,7 +88,7 @@ function renderOverview() {
   $('total-usd').textContent = summary.total_usd == null ? '—' : money(summary.total_usd);
   $('unit-value').textContent = summary.unit_value == null ? '—' : unitFormat.format(number(summary.unit_value));
   $('total-units').textContent = `${unitFormat.format(number(summary.total_units ?? summary.units))} cuotapartes`;
-  $('cutoff').textContent = summary.as_of ? `Cierre: ${dateText(summary.as_of)}` : 'Sin cierres todavía';
+  $('cutoff').textContent = summary.as_of ? `Cierre: ${dateText(summary.as_of)}${summary.quote_as_of ? ` · MEP: ${dateText(summary.quote_as_of)}` : ''}` : 'Sin cierres todavía';
   const pending = Array.isArray(state.pending) ? state.pending : [];
   $('pending-count').textContent = pending.length;
   $('participant-cards').innerHTML = (state.participants || []).map(participant => {
@@ -154,7 +154,8 @@ function renderSettings() {
 
 function renderPublications() {
   const publications = state.publications || [];
-  $('publication-list').innerHTML = publications.length ? publications.map(item => `<div class="publication-item"><div>${esc(item.version || item.id || 'Publicación')}<small>${esc(dateText(item.published_at || item.created_at || item.as_of))}${item.message || item.error ? ` · ${esc(item.message || item.error)}` : ''}</small></div>${statusBadge(item.status || item.state || 'published')}</div>`).join('') : '<p class="empty">Las publicaciones aparecerán después del primer envío al sitio.</p>';
+  $('publication-list').innerHTML = publications.length ? publications.map(item => `<div class="publication-item"><div>Cierre ${esc(dateText(item.as_of))}<small>Publicado: ${esc(dateText(item.published_at || item.created_at))}${item.message || item.error ? ` · ${esc(item.message || item.error)}` : ''}</small></div>${statusBadge(item.status || item.state || 'published')}${item.state === 'published' ? `<button type="button" class="button button-quiet button-small" data-restore-publication="${esc(item.id)}">Republicar este cierre</button>` : ''}</div>`).join('') : '<p class="empty">Las publicaciones aparecerán después del primer envío al sitio.</p>';
+  document.querySelectorAll('[data-restore-publication]').forEach(button => button.addEventListener('click', () => runAction(`/api/publications/${encodeURIComponent(button.dataset.restorePublication)}/restore`, {}, 'Recuperando el cierre con las contraseñas actuales…', 'Cierre republicado.')));
 }
 
 async function refreshState() {

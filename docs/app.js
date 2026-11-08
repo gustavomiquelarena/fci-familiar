@@ -138,6 +138,8 @@ if (typeof document !== 'undefined') {
     currentRange = 'all';
     $('dashboard-title').textContent = `Hola, ${report.participant.name}.`;
     $('as-of').textContent = dateLabel(report.as_of);
+    $('quote-as-of').textContent = report.quote_as_of ? `Cierre MEP: ${dateLabel(report.quote_as_of)}` : '';
+    $('quote-as-of').hidden = !report.quote_as_of;
     $('balance').textContent = money(report.balance_usd);
     $('net-contributions').textContent = money(numeric(report.contributions_usd) - numeric(report.withdrawals_usd));
     $('profit').textContent = `${numeric(report.profit_usd) < 0 ? '−' : ''}${money(Math.abs(numeric(report.profit_usd)))}`;
@@ -164,7 +166,7 @@ if (typeof document !== 'undefined') {
     $('show-password').setAttribute('aria-pressed', 'false');
     $('show-password').setAttribute('aria-label', 'Mostrar contraseña');
     ['movements', 'allocation', 'balance-chart', 'unit-chart'].forEach(id => { $(id).replaceChildren(); });
-    ['dashboard-title', 'as-of', 'balance', 'net-contributions', 'profit', 'unit-value', 'unit-count', 'unit-return', 'contribution-caption', 'movement-count'].forEach(id => { $(id).textContent = ''; });
+    ['dashboard-title', 'as-of', 'quote-as-of', 'balance', 'net-contributions', 'profit', 'unit-value', 'unit-count', 'unit-return', 'contribution-caption', 'movement-count'].forEach(id => { $(id).textContent = ''; });
     $('dashboard').hidden = true; $('login-view').hidden = false; $('logout').hidden = true; $('header-note').hidden = false;
     message('Elegí tu nombre para volver a entrar.');
     $('participant').focus();

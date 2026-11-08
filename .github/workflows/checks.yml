@@ -17,3 +17,7 @@ jobs:
       - run: python -m unittest discover -s tests -v
         env:
           PYTHONPATH: local
+      - run: node tests/webcrypto_test.mjs
+      - run: python -c "from fci_familiar.publication import assert_public_tree; assert_public_tree()"
+        env:
+          PYTHONPATH: local

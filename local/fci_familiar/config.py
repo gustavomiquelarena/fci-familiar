@@ -27,7 +27,19 @@ def atomic_json(path: Path, value: object) -> None:
 
 def default_data_dir() -> Path:
     override = os.environ.get("FCI_DATA_DIR")
-    return Path(override).expanduser().resolve() if override else Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local/share")) / "FCIFamiliar"
+    if override:
+        return Path(override).expanduser().resolve()
+    pointer = REPO_ROOT.parent / ".fci-familiar-local.json"
+    if pointer.is_file():
+        values = json.loads(pointer.read_text(encoding="utf-8"))
+        if values.get("data_dir") and Path(values["data_dir"]).is_absolute():
+            return Path(values["data_dir"]).resolve()
+    local = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local/share"))
+    # Packaged launchers can virtualize LOCALAPPDATA to their own LocalCache.
+    # The app opened from Explorer/Task Scheduler must reach the same user data.
+    if os.name == "nt" and "packages" in {p.lower() for p in local.parts} and local.parts[-2:] == ("LocalCache", "Local"):
+        local = Path(os.environ.get("USERPROFILE", Path.home())) / "AppData" / "Local"
+    return local / "FCIFamiliar"
 
 
 @dataclass
@@ -57,6 +69,11 @@ class Config:
 
     def save(self) -> None:
         atomic_json(self.file, asdict(self))
+
+    def remember_location(self) -> None:
+        # Private pointer outside Git: Explorer, a packaged terminal and Task
+        # Scheduler must all open the same physical data directory.
+        atomic_json(REPO_ROOT.parent / ".fci-familiar-local.json", {"data_dir": str(self.root)})
 
     @classmethod
     def load(cls, data_dir: str | Path | None = None) -> "Config":

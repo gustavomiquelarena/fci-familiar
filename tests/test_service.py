@@ -201,6 +201,30 @@ class ServiceIntegrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             publication.assert_public_tree()
 
+    def test_restore_publication_uses_saved_close_without_changing_ledger(self):
+        published = self.record_published()
+        self.service.add_movement({"participant_id": "juli", "amount": "10", "date": "2026-01-02",
+                                   "type": "subscription", "status": "posted", "request_id": "later"})
+        with self.service.connection() as conn:
+            ids = [r[0] for r in conn.execute("SELECT id FROM movements WHERE status='posted'")]
+            self.insert_close(conn, "2026-01-03", "310", "310", ids)
+            conn.commit()
+        with patch("fci_familiar.publication._git", side_effect=self.fake_git), patch("fci_familiar.publication.verify_publication"):
+            result = self.service.restore_publication("original-published")
+        self.assertEqual(result["state"], "published")
+        self.assertEqual(self.report_for("juli", "anterior-juli")["as_of"], published["as_of"])
+        with self.service.connection() as conn:
+            self.assertEqual(conn.execute("SELECT count(*) FROM movements").fetchone()[0], 4)
+            self.assertEqual(finance.latest_close(conn)["as_of"], "2026-01-03")
+
+    def test_settings_validation_is_atomic(self):
+        original_username = self.config.iol_username
+        with self.assertRaises(ValueError):
+            self.service.update_settings({"iol_username": "changed", "repository_url": "https://invalid.example/repo"})
+        self.assertEqual(self.config.iol_username, original_username)
+        with self.assertRaises(ValueError):
+            self.service.restore_publication("does-not-exist")
+
     def test_backup_and_restore_retain_financial_state_and_integrity(self):
         self.record_published()
         self.service.add_movement({"participant_id": "juli", "amount": "12.5", "date": "2026-01-02",

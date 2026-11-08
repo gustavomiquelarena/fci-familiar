@@ -315,6 +315,7 @@ def build_reports(conn) -> dict:
                             "withdrawals_usd": decimal_text(historical_withdrawals)})
         allocation = _allocation(conn, latest, units / recorded_units if recorded_units else ZERO)
         report = {"participant": dict(participant), "as_of": latest["as_of"],
+                  "quote_as_of": _metadata(latest).get("quote_as_of"),
                   "unit_value": decimal_text(unit_value), "balance_usd": decimal_text(balance),
                   "contributions_usd": decimal_text(contributions), "withdrawals_usd": decimal_text(withdrawals),
                   "profit_usd": decimal_text(balance + withdrawals - contributions),
@@ -335,4 +336,5 @@ def build_reports(conn) -> dict:
                         "unit_value": decimal_text(unit_value), "as_of": latest["as_of"],
                         "cash_ars": latest["cash_ars"], "cash_usd": latest["cash_usd"],
                         "securities_ars": latest["securities_ars"], "mep": latest["mep"],
+                        "quote_as_of": _metadata(latest).get("quote_as_of"),
                         "pending_count": len(pending)}, "issues": issues, "pending": pending}

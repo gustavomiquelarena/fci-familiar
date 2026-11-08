@@ -6,7 +6,7 @@ La base principal y las credenciales quedan en la PC. El repositorio contiene el
 
 ## Uso diario
 
-1. Abrir `scripts/start-admin.ps1` con PowerShell.
+1. Abrir `scripts/start-admin.ps1` con PowerShell (o el acceso `Abrir administrador familiar.cmd` junto a la carpeta del proyecto). Se abre el navegador y el servidor queda en segundo plano.
 2. Ir a `http://127.0.0.1:8765`.
 3. En **Movimientos**, registrar una suscripción o rescate y distribuir el importe entre los beneficiarios. Se puede ingresar USD o ARS.
 4. Se usa el último valor de cuotaparte guardado correspondiente a la fecha. Los ARS se convierten con el MEP de ese mismo cierre. El precio, tipo de cambio y cuotapartes quedan congelados en el registro.
@@ -14,6 +14,8 @@ La base principal y las credenciales quedan en la PC. El repositorio contiene el
 6. Los movimientos nuevos se publican con el siguiente cierre. Registrar un movimiento no cambia el último reporte ya publicado.
 
 Un rescate no puede superar las cuotapartes disponibles. Para corregir un movimiento se registra una reversión con motivo y luego el movimiento correcto. Los registros originales permanecen auditables.
+
+Para cerrar el servidor, ejecutar `scripts/stop-admin.ps1` o el acceso `Cerrar administrador familiar.cmd` una vez terminadas las operaciones. Si ya está abierto, el acceso de inicio reutiliza la misma aplicación.
 
 ## Contraseñas de los hijos
 
@@ -36,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start-admin.ps1
 
 La inicialización conserva los valores históricos de cuotapartes y los cierres guardados del Excel, incluyendo columnas auxiliares. Extrae las consultas Power Query para procedencia. No necesita que se actualicen fórmulas ni abrir Excel y no modifica el archivo original.
 
-La configuración se guarda en `%LOCALAPPDATA%\FCIFamiliar\config.json`. Para usar otra carpeta privada, agregar `--data-dir 'C:\ruta\privada'` antes del subcomando o definir `FCI_DATA_DIR`. La carpeta privada no puede estar dentro del checkout público.
+La configuración se guarda en `%LOCALAPPDATA%\FCIFamiliar\config.json`. Un puntero privado `.fci-familiar-local.json`, junto a la carpeta del checkout y fuera de Git, conserva su ubicación física para que Explorer, terminales empaquetadas y Task Scheduler abran la misma base. Para usar otra carpeta privada, agregar `--data-dir 'C:\ruta\privada'` antes del subcomando o definir `FCI_DATA_DIR`. La carpeta privada no puede estar dentro del checkout público.
 
 El archivo heredado `encrypted_config.ini` contiene un objeto JSON cifrado con Fernet, no un INI convencional. La clave maestra se lee del destino genérico `secret_key` de Windows; la entrada `IOL` contiene la credencial del proveedor. No se guarda la clave maestra en el proyecto. El backend usa pywin32 si está disponible y la API nativa de Windows en caso contrario.
 
@@ -69,7 +71,7 @@ En **Configuración**, indicar la URL HTTPS del repositorio y la URL de Pages. P
 
 Git debe tener configurado el nombre/correo del autor y un acceso válido al repositorio bajo el mismo usuario de Windows que ejecuta la tarea. Usar Git Credential Manager para iniciar sesión; nunca colocar un token en la URL del remoto ni en los archivos del proyecto.
 
-**Publicar** prepara una versión completa, cifra cada reporte con su contraseña individual, comprueba los archivos permitidos y hace commit/push. La versión sólo figura publicada cuando la URL de Pages confirma el manifiesto y sus archivos. Si Pages tarda más, la publicación queda pendiente de verificación.
+**Publicar** prepara una versión completa, cifra cada reporte con su contraseña individual, comprueba los archivos permitidos y hace commit/push únicamente de los reportes generados. Los cambios del código se revisan y publican por separado. La versión sólo figura publicada cuando la URL de Pages confirma el manifiesto y sus archivos. Si Pages tarda más, la publicación queda pendiente de verificación.
 
 La información financiera sin cifrar, bases, fuentes Excel, archivos de credenciales, respuestas IOL y respaldos se mantienen fuera de Git. Los datos de prueba son ficticios.
 
@@ -104,10 +106,10 @@ Restaurar en una carpeta nueva (el comando no sobrescribe la base activa):
 
 ```powershell
 python -m fci_familiar --data-dir 'C:\ruta\recuperacion' restore 'C:\ruta\respaldos_privados\weekly-AAAA-WNN.sqlite3'
-python -m fci_familiar --data-dir 'C:\ruta\recuperacion' serve
+python -m fci_familiar --data-dir 'C:\ruta\recuperacion' serve --port 8766
 ```
 
-Si está disponible `config-backup.json` junto al respaldo, se recuperan sus ajustes manteniendo la nueva ubicación de datos. En otra cuenta Windows habrá que disponer de su clave Fernet y restablecer las contraseñas de los reportes. Para recuperar una versión web anterior, revertir el commit correspondiente en Git y dejar que Pages despliegue la reversión; el historial original no se reescribe.
+Si está disponible `config-backup.json` junto al respaldo, se recuperan sus ajustes manteniendo la nueva ubicación de datos. En otra cuenta Windows habrá que disponer de su clave Fernet y restablecer las contraseñas de los reportes. Para recuperar una versión web anterior, ir a **Actividad y respaldos → Republicar este cierre**. Se crea una publicación nueva del cierre seleccionado con las contraseñas actuales, sin modificar el libro de movimientos. Las versiones del código se recuperan por Git.
 
 ## Verificación del desarrollo
 

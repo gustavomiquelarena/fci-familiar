@@ -70,6 +70,7 @@ def main(argv=None):
         if args.backup_dir:
             config.backup_dir = str(Path(args.backup_dir).resolve())
         config.save()
+        config.remember_location()
     service = Service(config)
     if args.command in {"init", "import"}:
         _print(service.import_source())

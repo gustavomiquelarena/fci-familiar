@@ -177,8 +177,12 @@ def publish(conn, config: Config, passwords: dict[str, str], *, bundle: dict | N
             conn.commit()
             return {"id": publication_id, "state": "prepared", "as_of": bundle["as_of"]}
         ensure_repository(config)
-        # Only approved code paths and encrypted reports may be staged.
-        _git("add", "--", ".gitignore", "README.md", "pyproject.toml", "requirements.txt", "local", "docs", "tests", "scripts", ".github")
+        # Weekly publishing owns only generated data. Source changes are committed
+        # separately after development checks, never swept into a password reset.
+        already_staged = _git("diff", "--cached", "--name-only").stdout.splitlines()
+        if any(not p.startswith("docs/data/") for p in already_staged):
+            raise ValueError("Hay cambios de código preparados en Git; completá esa revisión antes de publicar reportes")
+        _git("add", "--", "docs/data")
         staged = _git("diff", "--cached", "--name-only").stdout.splitlines()
         if any(Path(p).suffix.lower() in {".xlsx", ".ini", ".db", ".sqlite3", ".csv"} for p in staged):
             raise ValueError("Git contiene un archivo privado preparado para publicar")
