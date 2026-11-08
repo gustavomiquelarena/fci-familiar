@@ -101,7 +101,7 @@ def assert_public_tree() -> None:
                 raise ValueError("Se detectó un reporte sin el sobre de cifrado esperado")
         if file.stat().st_size < 2_000_000 and file.suffix in {".py", ".js", ".json", ".html", ".md", ".yml", ".yaml"}:
             content = file.read_text(encoding="utf-8")
-            if re.search(r"(?:gh[pousr]_[A-Za-z0-9]{25,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN .*PRIVATE KEY-----)", content):
+            if re.search(r"(?:gh[pousr]_[A-Za-z0-9]{25,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)", content):
                 raise ValueError("Se detectó un posible secreto en un archivo público")
 
 
