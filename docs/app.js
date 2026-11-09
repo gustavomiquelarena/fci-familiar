@@ -1,9 +1,17 @@
 const numberFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const unitFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+const exchangeFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 const percentFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const tones = ['#15776d', '#659286', '#9ab6a0', '#c7aa74', '#607f91', '#b5c6bd', '#8caaac'];
+const categoryColors = {
+  'Cash ARS': '#4b8690', 'Cash USD': '#86ad9c', Efectivo: '#86ad9c', 'Títulos públicos': '#be832e',
+  'Obligaciones negociables': '#a85771', 'Acciones argentinas': '#526db1',
+  CEDEAR: '#15776d', 'Fondos comunes': '#816b9c', 'Bonos y letras': '#8d7556',
+};
+const cashCategories = new Set(['Cash ARS', 'Cash USD', 'Efectivo']);
 const numeric = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const money = value => numberFormat.format(numeric(value));
+const signedMoney = value => `${value < 0 ? '−' : value > 0 ? '+' : ''}${money(Math.abs(value))}`;
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 function parseDate(value) {
@@ -110,6 +118,7 @@ if (typeof document !== 'undefined') {
 
   function renderAllocation() {
     const positions = [...currentReport.allocation].sort((a, b) => numeric(b.value_usd) - numeric(a.value_usd));
+    renderAllocationChart(positions);
     const total = positions.reduce((sum, position) => sum + numeric(position.value_usd), 0);
     if (!positions.length || total <= 0) {
       $('allocation').innerHTML = '<p class="empty-state">El detalle de la cartera estará disponible después de la próxima descarga de posiciones.</p>';
@@ -122,13 +131,60 @@ if (typeof document !== 'undefined') {
     }).join('');
   }
 
+  function renderAllocationChart(positions) {
+    const amounts = new Map();
+    for (const position of positions) {
+      const category = position.category || 'Sin clasificar';
+      amounts.set(category, (amounts.get(category) || 0) + numeric(position.value_usd));
+    }
+    const groups = [...amounts].filter(([, value]) => value !== 0).sort((a, b) => b[1] - a[1]);
+    if (!groups.length) {
+      $('allocation-chart').innerHTML = '<p class="empty-state">Todavía no hay posiciones con saldo para mostrar.</p>';
+      return;
+    }
+    const total = groups.reduce((sum, [, value]) => sum + value, 0);
+    const cash = groups.reduce((sum, [category, value]) => sum + (cashCategories.has(category) ? value : 0), 0);
+    const positiveTotal = groups.reduce((sum, [, value]) => sum + Math.max(value, 0), 0);
+    const color = category => Object.hasOwn(categoryColors, category) ? categoryColors[category] : '#7b8b85';
+    let start = 0;
+    const slices = groups.filter(([, value]) => value > 0).map(([category, value]) => {
+      const end = start + 100 * value / positiveTotal;
+      const slice = `${color(category)} ${start}% ${end}%`;
+      start = end;
+      return slice;
+    });
+    const legend = groups.map(([category, value]) => `
+      <li><i style="background-color:${color(category)}" aria-hidden="true"></i><span>${escapeHtml(category)}</span>
+        <strong>${money(value)}</strong><span class="portfolio-share">${value > 0 ? `${percentFormat.format(100 * value / positiveTotal)}%` : '—'}</span></li>`).join('');
+    $('allocation-chart').innerHTML = `
+      <div class="portfolio-chart">
+        <div class="portfolio-donut" style="${slices.length ? `background-image:conic-gradient(${slices.join(',')})` : ''}">
+          <div><span>Total USD MEP</span><strong>${money(total)}</strong></div>
+        </div>
+        <div class="portfolio-detail">
+          <dl class="portfolio-totals"><div><dt>Efectivo</dt><dd>${money(cash)}</dd></div>
+            <div><dt>Inversiones</dt><dd>${money(total - cash)}</dd></div></dl>
+          <ul class="portfolio-legend" aria-label="Distribución en USD MEP por clase">${legend}</ul>
+        </div>
+      </div>
+      ${groups.some(([, value]) => value < 0) ? '<p class="chart-note">La torta muestra los saldos positivos. El total incluye los saldos negativos.</p>' : ''}`;
+  }
+
   function renderMovements() {
     const movements = [...currentReport.movements].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     $('movement-count').textContent = `${movements.length} ${movements.length === 1 ? 'movimiento' : 'movimientos'}`;
     $('movements').innerHTML = movements.map(movement => {
       const redemption = ['redemption', 'withdrawal', 'rescate'].includes(String(movement.type).toLowerCase()) || numeric(movement.amount_usd) < 0;
       const label = movement.type === 'reversal' ? 'Reversión' : redemption ? 'Retiro' : 'Aporte';
-      return `<tr><td>${escapeHtml(dateLabel(movement.date))}</td><td><span class="movement-badge${redemption ? ' withdrawal' : ''}">${label}</span></td><td class="movement-note">${escapeHtml(movement.note || '—')}</td><td class="numeric ${redemption ? 'negative' : 'positive'}">${redemption ? '−' : '+'}${money(Math.abs(numeric(movement.amount_usd)))}</td><td class="numeric">${unitFormat.format(Math.abs(numeric(movement.units)))}</td></tr>`;
+      const usd = numeric(movement.amount_usd);
+      let originalCurrency = '';
+      if (movement.currency === 'ARS') {
+        const ars = movement.original_amount == null || movement.original_amount === ''
+          ? '—' : signedMoney(Math.sign(usd) * Math.abs(numeric(movement.original_amount)));
+        const rate = numeric(movement.fx) > 0 ? exchangeFormat.format(numeric(movement.fx)) : '—';
+        originalCurrency = `<small>ARS ${ars}</small><small title="Tipo de cambio MEP en ARS por USD">TC MEP ${rate}</small>`;
+      }
+      return `<tr><td>${escapeHtml(dateLabel(movement.date))}</td><td><span class="movement-badge${redemption ? ' withdrawal' : ''}">${label}</span></td><td class="movement-note">${escapeHtml(movement.note || '—')}</td><td class="numeric movement-amount"><span class="${usd < 0 ? 'negative' : 'positive'}">USD ${signedMoney(usd)}</span>${originalCurrency}</td><td class="numeric">${unitFormat.format(Math.abs(numeric(movement.units)))}</td></tr>`;
     }).join('');
     $('no-movements').hidden = movements.length !== 0;
   }
@@ -165,7 +221,7 @@ if (typeof document !== 'undefined') {
     $('show-password').textContent = 'Ver';
     $('show-password').setAttribute('aria-pressed', 'false');
     $('show-password').setAttribute('aria-label', 'Mostrar contraseña');
-    ['movements', 'allocation', 'balance-chart', 'unit-chart'].forEach(id => { $(id).replaceChildren(); });
+    ['movements', 'allocation', 'allocation-chart', 'balance-chart', 'unit-chart'].forEach(id => { $(id).replaceChildren(); });
     ['dashboard-title', 'as-of', 'quote-as-of', 'balance', 'net-contributions', 'profit', 'unit-value', 'unit-count', 'unit-return', 'contribution-caption', 'movement-count'].forEach(id => { $(id).textContent = ''; });
     $('dashboard').hidden = true; $('login-view').hidden = false; $('logout').hidden = true; $('header-note').hidden = false;
     message('Elegí tu nombre para volver a entrar.');

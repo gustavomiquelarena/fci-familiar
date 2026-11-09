@@ -54,7 +54,21 @@ class LedgerTests(unittest.TestCase):
         after = finance.build_reports(self.conn)
         self.assertEqual(Decimal(own(after)["balance_usd"]), Decimal("101.5"))
         self.assertEqual(Decimal(own(after)["profit_usd"]), Decimal("0"))
+        movement = next(item for item in own(after)["movements"] if item["id"] == created["movements"][0]["id"])
+        self.assertEqual((movement["currency"], movement["original_amount"], movement["fx"]), ("ARS", "1500", "1000"))
+        self.assertNotIn("original_amount", own(after, "juli")["movements"][0])
         self.assertEqual(after["issues"], [])
+
+    def test_report_allocation_is_personal_and_splits_cash_by_currency(self):
+        self.conn.execute("UPDATE account_snapshots SET cash_ars='30000', cash_usd='60', securities_ars='210000'")
+        self.conn.executemany("INSERT INTO positions VALUES(?,?,?,?,?,?,?)", [
+            ("2026-01-01", "SYN1", "Instrumento sintético", "CEDEAR", "ARS", "10", "120"),
+            ("2026-01-01", "SYN2", "Instrumento sintético", "Acciones", "ARS", "10", "90"),
+        ])
+        report = own(finance.build_reports(self.conn))
+        amounts = {row["category"]: Decimal(row["value_usd"]).quantize(Decimal("0.01")) for row in report["allocation"]}
+        self.assertEqual(amounts, {"Cash ARS": 10, "Cash USD": 20, "CEDEAR": 40, "Acciones argentinas": 30})
+        self.assertEqual(sum(amounts.values()), Decimal(report["balance_usd"]))
 
     def test_split_is_atomic_and_repeated_request_is_idempotent(self):
         data = {"type": "subscription", "amount": "30", "currency": "USD", "date": "2026-01-02",

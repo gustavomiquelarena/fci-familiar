@@ -8,6 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from . import db
+from .portfolio import classified_positions
 
 ZERO = Decimal(0)
 UNIT_TOLERANCE = Decimal("0.00000001")
@@ -233,28 +234,31 @@ def _cash_totals(rows):
     return contributions, withdrawals
 
 
-def _allocation(conn, snapshot, share):
-    total = dec(snapshot["total_usd"])
-    positions = conn.execute("SELECT * FROM positions WHERE snapshot_id=? ORDER BY category,symbol",
-                             (snapshot["id"],)).fetchall()
-    items = [{"symbol": row["symbol"], "name": row["name"] or row["symbol"],
-              "category": row["category"], "fund_value_usd": dec(row["value_usd"])} for row in positions]
+def _fund_allocation(snapshot, positions):
     mep = dec(snapshot["mep"])
     if mep <= 0:
         return []
-    cash = dec(snapshot["cash_usd"]) + dec(snapshot["cash_ars"]) / mep
-    if cash:
-        items.append({"symbol": "CASH", "name": "Efectivo", "category": "Efectivo", "fund_value_usd": cash})
+    items = [{"symbol": row["symbol"], "name": row["name"] or row["symbol"],
+              "category": row["category"], "value_usd": dec(row["value_usd"])} for row in positions]
+    for currency, value in (("ARS", dec(snapshot["cash_ars"]) / mep), ("USD", dec(snapshot["cash_usd"]))):
+        if value:
+            items.append({"symbol": currency, "name": f"Efectivo en {currency}",
+                          "category": f"Cash {currency}", "value_usd": value})
     if not positions and dec(snapshot["securities_ars"]):
         items.append({"symbol": "PORTFOLIO", "name": "Títulos · detalle histórico no disponible",
-                      "category": "Títulos", "fund_value_usd": dec(snapshot["securities_ars"]) / mep})
-    return [{"symbol": item["symbol"], "name": item["name"], "category": item["category"],
-             "value_usd": decimal_text(item["fund_value_usd"] * share),
-             "weight": decimal_text(item["fund_value_usd"] / total if total else ZERO)}
-            for item in items]
+                      "category": "Títulos", "value_usd": dec(snapshot["securities_ars"]) / mep})
+    return items
 
 
-def build_reports(conn) -> dict:
+def _report_movement(row):
+    movement = {"id": row["id"], "date": row["effective_at"], "type": row["type"],
+                "amount_usd": row["amount_usd"], "units": row["units"], "note": row["note"]}
+    if row["currency"] == "ARS":
+        movement.update(currency="ARS", original_amount=row["original_amount"], fx=row["fx"])
+    return movement
+
+
+def build_reports(conn, *, raw_root=None) -> dict:
     snapshots = [dict(row) for row in conn.execute("SELECT * FROM account_snapshots ORDER BY as_of,id")]
     if not snapshots:
         return {"schema_version": 1, "version": "empty", "as_of": None, "unit_value": "0",
@@ -262,6 +266,7 @@ def build_reports(conn) -> dict:
                 "issues": [{"code": "missing_close", "message": "Todavía no hay cierres importados o descargados.",
                             "severity": "error", "blocking": True}]}
     latest = snapshots[-1]
+    latest_metadata = _metadata(latest)
     latest_rows = eligible_movements(conn, latest)
     total_units = sum((dec(row["units"]) for row in latest_rows), ZERO)
     recorded_units, unit_value = dec(latest["units"]), dec(latest["unit_value"])
@@ -288,6 +293,9 @@ def build_reports(conn) -> dict:
                for row in all_movements
                if row["status"] == "pending" or (row["status"] == "posted" and row["id"] not in allowed_ids)]
     membership = [(snapshot, eligible_movements(conn, snapshot)) for snapshot in snapshots]
+    positions = classified_positions(conn, latest["id"], latest_metadata, raw_root)
+    fund_allocation = _fund_allocation(latest, positions)
+    fund_total = dec(latest["total_usd"])
     participants = []
     for participant in conn.execute("SELECT * FROM participants ORDER BY rowid"):
         participant_id = participant["id"]
@@ -313,19 +321,19 @@ def build_reports(conn) -> dict:
                             "unit_value": snapshot["unit_value"], "units": decimal_text(historical_units),
                             "contributions_usd": decimal_text(historical_contributions),
                             "withdrawals_usd": decimal_text(historical_withdrawals)})
-        allocation = _allocation(conn, latest, units / recorded_units if recorded_units else ZERO)
+        share = units / recorded_units if recorded_units else ZERO
+        allocation = [{**item, "value_usd": decimal_text(item["value_usd"] * share),
+                       "weight": decimal_text(item["value_usd"] / fund_total if fund_total else ZERO)}
+                      for item in fund_allocation]
         report = {"participant": dict(participant), "as_of": latest["as_of"],
-                  "quote_as_of": _metadata(latest).get("quote_as_of"),
+                  "quote_as_of": latest_metadata.get("quote_as_of"),
                   "unit_value": decimal_text(unit_value), "balance_usd": decimal_text(balance),
                   "contributions_usd": decimal_text(contributions), "withdrawals_usd": decimal_text(withdrawals),
                   "profit_usd": decimal_text(balance + withdrawals - contributions),
                   "units": decimal_text(units), "unit_return_pct": decimal_text((unit_value - 1) * 100),
                   "history": history,
-                  "movements": [{"id": row["id"], "date": row["effective_at"], "type": row["type"],
-                                 "amount_usd": row["amount_usd"], "units": row["units"], "note": row["note"]}
-                                for row in movements], "allocation": allocation,
-                  "allocation_status": "detailed" if conn.execute("SELECT 1 FROM positions WHERE snapshot_id=? LIMIT 1",
-                                                                  (latest["id"],)).fetchone() else "historical_summary"}
+                  "movements": [_report_movement(row) for row in movements], "allocation": allocation,
+                  "allocation_status": "detailed" if positions else "historical_summary"}
         participants.append({"id": participant_id, "name": participant["name"], "report": report})
     version_input = {"as_of": latest["as_of"], "participants": participants,
                      "raw_hash": latest["raw_hash"]}
@@ -336,5 +344,5 @@ def build_reports(conn) -> dict:
                         "unit_value": decimal_text(unit_value), "as_of": latest["as_of"],
                         "cash_ars": latest["cash_ars"], "cash_usd": latest["cash_usd"],
                         "securities_ars": latest["securities_ars"], "mep": latest["mep"],
-                        "quote_as_of": _metadata(latest).get("quote_as_of"),
+                        "quote_as_of": latest_metadata.get("quote_as_of"),
                         "pending_count": len(pending)}, "issues": issues, "pending": pending}

@@ -6,8 +6,8 @@
   <meta name="color-scheme" content="light">
   <meta name="description" content="Tu espacio para seguir tus inversiones y ver cómo evolucionan tus ahorros.">
   <title>Mi fondo · Inversiones en familia</title>
-  <link rel="stylesheet" href="style.css?v=2">
-  <script type="module" src="app.js"></script>
+  <link rel="stylesheet" href="style.css?v=3">
+  <script type="module" src="app.js?v=3"></script>
 </head>
 <body>
   <header class="site-header">
@@ -52,17 +52,23 @@
         <article class="metric"><span class="metric-label">Mi resultado</span><div class="metric-value" id="profit-container"><span class="currency-label">USD</span> <strong id="profit">—</strong></div><span class="metric-caption">Saldo + retiros − aportes</span></article>
       </div>
       <div class="content-grid">
-        <article class="panel chart-panel">
-          <div class="panel-heading"><div><span class="eyebrow">EL RECORRIDO</span><h2>Así evolucionó mi saldo</h2></div><div class="range-control" role="group" aria-label="Período del gráfico"><button type="button" data-range="90">3 meses</button><button type="button" data-range="365">1 año</button><button type="button" data-range="all" class="active" aria-pressed="true">Todo</button></div></div>
-          <div id="balance-chart" class="chart-container"></div>
-          <p class="chart-note">El saldo refleja tanto tus aportes y retiros como el resultado de las inversiones.</p>
-        </article>
+        <div class="chart-stack">
+          <article class="panel chart-panel">
+            <div class="panel-heading"><div><span class="eyebrow">EL RECORRIDO</span><h2>Así evolucionó mi saldo</h2></div><div class="range-control" role="group" aria-label="Período del gráfico"><button type="button" data-range="90">3 meses</button><button type="button" data-range="365">1 año</button><button type="button" data-range="all" class="active" aria-pressed="true">Todo</button></div></div>
+            <div id="balance-chart" class="chart-container"></div>
+            <p class="chart-note">El saldo refleja tanto tus aportes y retiros como el resultado de las inversiones.</p>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><span class="eyebrow">EFECTIVO E INVERSIONES</span><h2>Composición de mi cartera</h2></div></div>
+            <div id="allocation-chart"></div>
+          </article>
+        </div>
         <article class="panel allocation-panel"><div class="panel-heading"><div><span class="eyebrow">MIS INVERSIONES</span><h2>Dónde está mi ahorro</h2></div></div><div id="allocation"></div><p class="chart-note">Tu parte proporcional de la cartera del fondo.</p></article>
       </div>
       <article class="panel unit-panel"><div class="unit-copy"><span class="eyebrow">EL VALOR DEL FONDO</span><h2>Una cuotaparte hoy vale</h2><strong id="unit-value">—</strong><p>Tu ahorro se representa en cuotapartes. Su valor permite seguir la evolución del fondo sin confundirla con los aportes.</p><span class="unit-count" id="unit-count"></span></div><div class="unit-chart-wrap"><div id="unit-chart" class="chart-container chart-small"></div><p class="chart-note" id="unit-return"></p></div></article>
-      <article class="panel movements-panel"><div class="panel-heading"><div><span class="eyebrow">MIS MOVIMIENTOS</span><h2>Aportes y retiros</h2></div><span class="table-counter" id="movement-count"></span></div><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Concepto</th><th class="numeric">USD MEP</th><th class="numeric">Cuotapartes</th></tr></thead><tbody id="movements"></tbody></table></div><p class="empty-state" id="no-movements" hidden>Todavía no hay movimientos para mostrar.</p></article>
+      <article class="panel movements-panel"><div class="panel-heading"><div><span class="eyebrow">MIS MOVIMIENTOS</span><h2>Aportes y retiros</h2></div><span class="table-counter" id="movement-count"></span></div><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Concepto</th><th class="numeric">Importe</th><th class="numeric">Cuotapartes</th></tr></thead><tbody id="movements"></tbody></table></div><p class="empty-state" id="no-movements" hidden>Todavía no hay movimientos para mostrar.</p></article>
     </section>
   </main>
-  <footer class="site-footer"><span>mi fondo <span aria-hidden="true">·</span> inversiones en familia</span><span>Todos los importes se expresan en USD MEP.</span></footer>
+  <footer class="site-footer"><span>mi fondo <span aria-hidden="true">·</span> inversiones en familia</span><span>Valuaciones en USD MEP.</span></footer>
 </body>
 </html>

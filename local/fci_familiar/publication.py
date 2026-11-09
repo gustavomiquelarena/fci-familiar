@@ -168,7 +168,7 @@ def publish(conn, config: Config, passwords: dict[str, str], *, bundle: dict | N
             push: bool = True, verify: bool = True) -> dict:
     from .finance import build_reports
     initialize_publications(conn)
-    bundle = bundle if bundle is not None else build_reports(conn)
+    bundle = bundle if bundle is not None else build_reports(conn, raw_root=config.root / "raw")
     if not bundle.get("as_of") or not bundle.get("participants"):
         raise ValueError("Primero importá el histórico o descargá un cierre válido")
     blocking = [i for i in bundle.get("issues", []) if isinstance(i, dict) and (i.get("blocking") or i.get("severity") == "error")]
