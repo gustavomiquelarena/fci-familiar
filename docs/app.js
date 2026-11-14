@@ -1,3 +1,6 @@
+import { renderChart, filterHistory, periodChange } from './fund-chart.js?v=1';
+export { renderChart };
+
 const numberFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const unitFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
 const exchangeFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
@@ -52,65 +55,33 @@ export async function decryptReport(envelope, password) {
   }
 }
 
-function chart(points, field, id, small = false) {
-  const series = points.filter(point => parseDate(point.date) && Number.isFinite(Number(point[field])));
-  if (!series.length) return '<div class="chart-empty">La evolución se mostrará cuando haya cierres disponibles.</div>';
-  const width = 620; const height = small ? 185 : 245;
-  const left = 57; const right = 20; const top = 17; const bottom = 38;
-  const values = series.map(point => Number(point[field]));
-  const minValue = Math.min(...values); const maxValue = Math.max(...values);
-  const padding = Math.max((maxValue - minValue) * .18, Math.abs(maxValue) * .025, .01);
-  const min = Math.max(0, minValue - padding); const max = maxValue + padding;
-  const stamps = series.map(point => parseDate(point.date).valueOf());
-  const start = Math.min(...stamps); const end = Math.max(...stamps);
-  const x = index => start === end ? (left + width - right) / 2 : left + (stamps[index] - start) / (end - start) * (width - left - right);
-  const y = value => height - bottom - (value - min) / Math.max(max - min, .000001) * (height - top - bottom);
-  const coords = values.map((value, index) => `${x(index).toFixed(2)},${y(value).toFixed(2)}`);
-  const line = `M${coords.join(' L')}`;
-  const area = `${line} L${x(values.length - 1)},${height - bottom} L${x(0)},${height - bottom} Z`;
-  const labels = Array.from({ length: 4 }, (_, index) => {
-    const value = min + (max - min) * index / 3;
-    const label = small ? new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 }).format(value) : new Intl.NumberFormat('es-AR', { notation: Math.abs(value) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: 0 }).format(value);
-    return `<line x1="${left}" y1="${y(value)}" x2="${width - right}" y2="${y(value)}" stroke="#dfe7df" stroke-dasharray="3 5"/><text x="${left - 11}" y="${y(value) + 3}" text-anchor="end" class="chart-text">${escapeHtml(label)}</text>`;
-  }).join('');
-  const circle = `<circle cx="${x(values.length - 1)}" cy="${y(values.at(-1))}" r="4.5" fill="#15776d" stroke="#fff" stroke-width="2"/>`;
-  const firstDate = dateLabel(series[0].date, { day: '2-digit', month: 'short', year: '2-digit' });
-  const lastDate = dateLabel(series.at(-1).date, { day: '2-digit', month: 'short', year: '2-digit' });
-  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${small ? 'Valor de cuotaparte' : 'Saldo en USD MEP'} desde ${escapeHtml(firstDate)} hasta ${escapeHtml(lastDate)}"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#8ab6a2" stop-opacity=".28"/><stop offset="100%" stop-color="#8ab6a2" stop-opacity=".02"/></linearGradient></defs>${labels}<path d="${area}" fill="url(#${id})"/><path d="${line}" stroke="#15776d" stroke-width="2.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>${circle}<text x="${left}" y="${height - 10}" class="chart-text">${escapeHtml(firstDate)}</text>${series.length > 1 ? `<text x="${width - right}" y="${height - 10}" text-anchor="end" class="chart-text">${escapeHtml(lastDate)}</text>` : ''}</svg>`;
-}
-
-export function renderChart(points, field = 'balance_usd', small = false) {
-  return chart(points, field, small ? 'unit-gradient' : 'balance-gradient', small);
-}
-
 if (typeof document !== 'undefined') {
   const $ = id => document.getElementById(id);
   let manifest = null;
   let currentReport = null;
   let working = false;
   let currentRange = 'all';
+  let unitRange = 'all';
 
   function message(text, error = false) {
     $('login-message').textContent = text;
     $('login-message').classList.toggle('error', error);
   }
 
-  function filteredHistory() {
-    const history = [...(currentReport?.history || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    if (currentRange === 'all' || !history.length) return history;
-    const end = parseDate(history.at(-1).date)?.valueOf();
-    return history.filter(point => parseDate(point.date)?.valueOf() >= end - Number(currentRange) * 86400000);
-  }
-
   function renderHistory() {
-    const history = filteredHistory();
-    $('balance-chart').innerHTML = chart(history, 'balance_usd', 'balance-gradient');
-    $('unit-chart').innerHTML = chart(history, 'unit_value', 'unit-gradient', true);
-    const valid = history.filter(point => numeric(point.unit_value) > 0);
-    const change = valid.length > 1 ? (numeric(valid.at(-1).unit_value) / numeric(valid[0].unit_value) - 1) * 100 : null;
+    const history = filterHistory(currentReport?.history || [], currentRange);
+    const units = filterHistory(currentReport?.history || [], unitRange);
+    $('balance-chart').innerHTML = renderChart(history, 'balance_usd');
+    $('unit-chart').innerHTML = renderChart(units, 'unit_value', true);
+    const change = periodChange(units);
     $('unit-return').textContent = change === null ? 'Se necesita más de un cierre para comparar la evolución.' : `${change >= 0 ? '+' : ''}${percentFormat.format(change)}% de variación del valor de cuotaparte en el período mostrado.`;
     document.querySelectorAll('[data-range]').forEach(button => {
       const active = button.dataset.range === currentRange;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    document.querySelectorAll('[data-unit-range]').forEach(button => {
+      const active = button.dataset.unitRange === unitRange;
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
@@ -192,6 +163,7 @@ if (typeof document !== 'undefined') {
   function renderReport(report) {
     currentReport = report;
     currentRange = 'all';
+    unitRange = 'all';
     $('dashboard-title').textContent = `Hola, ${report.participant.name}.`;
     $('as-of').textContent = dateLabel(report.as_of);
     $('quote-as-of').textContent = report.quote_as_of ? `Cierre MEP: ${dateLabel(report.quote_as_of)}` : '';
@@ -238,6 +210,7 @@ if (typeof document !== 'undefined') {
   $('logout').addEventListener('click', logout);
   $('participant').addEventListener('change', () => { $('password').value = ''; message(''); });
   document.querySelectorAll('[data-range]').forEach(button => button.addEventListener('click', () => { currentRange = button.dataset.range; renderHistory(); }));
+  document.querySelectorAll('[data-unit-range]').forEach(button => button.addEventListener('click', () => { unitRange = button.dataset.unitRange; renderHistory(); }));
   $('login-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (working || !manifest) return;

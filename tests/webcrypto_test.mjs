@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { delimiter } from 'node:path';
 
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
-const source = await readFile(new URL('../docs/app.js', import.meta.url), 'utf8');
+const chartSource = await readFile(new URL('../docs/fund-chart.js', import.meta.url), 'utf8');
+const chartUrl = `data:text/javascript;base64,${Buffer.from(chartSource).toString('base64')}`;
+const source = (await readFile(new URL('../docs/app.js', import.meta.url), 'utf8')).replace('./fund-chart.js?v=1', chartUrl);
 const { decryptReport, renderChart } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const password = 'clave de prueba';
 const expected = { participant: { id: 'synthetic', name: 'Ejemplo' }, as_of: '2026-01-02', balance_usd: '123.45', history: [], movements: [], allocation: [] };

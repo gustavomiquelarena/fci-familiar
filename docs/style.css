@@ -55,3 +55,10 @@
 @media (max-width: 760px) {
   .chart-stack { gap: 18px; }
 }
+
+.unit-chart-wrap { min-width: 0; }
+.unit-range-control { width: fit-content; max-width: 100%; margin: 0 0 14px auto; flex-wrap: wrap; }
+.unit-range-control button { min-height: 34px; }
+@media (max-width: 760px) {
+  .unit-range-control { margin-left: 0; }
+}
