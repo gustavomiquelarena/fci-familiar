@@ -1,22 +1,22 @@
 {
   "schema_version": 1,
-  "version": "69fa8403dd49493d8a7d5478816c63fb",
-  "as_of": "2026-11-16",
+  "version": "30a37dc185c54b68bea2fa06a80e6be6",
+  "as_of": "2026-11-21",
   "participants": [
     {
       "id": "tommy",
       "name": "Tommy",
-      "file": "data/tommy-ccf93c00c935846a.enc"
+      "file": "data/tommy-aa766021a3466d28.enc"
     },
     {
       "id": "juli",
       "name": "Juli",
-      "file": "data/juli-18ff7f23caa43477.enc"
+      "file": "data/juli-d2ddfb2e744879af.enc"
     },
     {
       "id": "pili",
       "name": "Pili",
-      "file": "data/pili-14c66d59721af515.enc"
+      "file": "data/pili-ea8afe945b769fcb.enc"
     }
   ]
 }
